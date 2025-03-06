@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bouncing DVD Logo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        
+        #animation-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #dvd-logo {
+            position: absolute;
+            width: 200px;
+            height: 100px;
+            background-repeat: no-repeat;
+            background-size: contain;
+            background-image: url('dvd_black.svg');
+            background-color: transparent;
+        }
+        
+        #rip-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+        
+        #rip-screen h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        
+        #rip-screen p {
+            font-size: 24px;
+            margin-bottom: 40px;
+        }
+        
+        #restart-button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #555;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        #restart-button:hover {
+            background-color: #777;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="animation-container">
+        <div id="dvd-logo"></div>
+        <div id="stats">Age: <span id="age">0</span> years</div>
+    </div>
+    
+    <div id="rip-screen">
+        <h1>RIP DVD Logo</h1>
+        <p>It lived for <span id="final-age">0</span> years</p>
+        <button id="restart-button">Restart Animation</button>
+    </div>
+
+    <script>
+        // US Mortality Rate Data based on CDC and SSA life tables
+        // This uses actual death probability at each age range: https://www.ssa.gov/oact/STATS/table4c6.html
+        const mortalityData = [
+            { maxAge: 1, probability: 0.00558 },   // Infant mortality
+            { maxAge: 5, probability: 0.00100 },   // Ages 1-4
+            { maxAge: 10, probability: 0.00068 },  // Ages 5-9
+            { maxAge: 15, probability: 0.00083 },  // Ages 10-14
+            { maxAge: 20, probability: 0.00170 },  // Ages 15-19
+            { maxAge: 25, probability: 0.00270 },  // Ages 20-24
+            { maxAge: 30, probability: 0.00326 },  // Ages 25-29
+            { maxAge: 35, probability: 0.00397 },  // Ages 30-34
+            { maxAge: 40, probability: 0.00554 },  // Ages 35-39
+            { maxAge: 45, probability: 0.00849 },  // Ages 40-44
+            { maxAge: 50, probability: 0.01309 },  // Ages 45-49
+            { maxAge: 55, probability: 0.01988 },  // Ages 50-54
+            { maxAge: 60, probability: 0.02901 },  // Ages 55-59
+            { maxAge: 65, probability: 0.04014 },  // Ages 60-64
+            { maxAge: 70, probability: 0.05791 },  // Ages 65-69
+            { maxAge: 75, probability: 0.08652 },  // Ages 70-74
+            { maxAge: 80, probability: 0.13573 },  // Ages 75-79
+            { maxAge: 85, probability: 0.21272 },  // Ages 80-84
+            { maxAge: 90, probability: 0.32691 },  // Ages 85-89
+            { maxAge: 95, probability: 0.46716 },  // Ages 90-94
+            { maxAge: 100, probability: 0.66066 }, // Ages 95-99
+            { maxAge: 105, probability: 0.82073 }, // Ages 100-104
+            { maxAge: 110, probability: 0.92500 }, // Ages 105-109
+            { maxAge: 115, probability: 0.99000 }  // Maximum age (extremely rare)
+        ];
+
+        // Animation constants
+        const SPEED = 2;
+        const LOGO_WIDTH = 200;
+        const LOGO_HEIGHT = 100;
+        const OPACITY_DECREASE = 0.005;
+        const YEAR_DURATION = 500; // milliseconds per year
+        
+        // Animation variables
+        let posX, posY, dirX, dirY;
+        let targetLifespan;
+        let currentAge = 0;
+        let opacity = 1;
+        let logo, container, ripScreen, finalAgeSpan, ageSpan;
+        let animationId;
+        let lastTimestamp = 0;
+        let yearAccumulator = 0;
+        // Different colored DVD logo files
+        let logoFiles = [
+            'dvd_white.svg',  // Assuming you have the black one already
+            'dvd_red.svg',
+            'dvd_green.svg',
+            'dvd_blue.svg',
+            'dvd_yellow.svg',
+            'dvd_magenta.svg',
+            'dvd_cyan.svg',
+            'dvd_orange.svg'
+        ];
+        let currentLogoIndex = 0;
+
+        // Initialize the animation
+        function init() {
+            // Get DOM elements
+            logo = document.getElementById('dvd-logo');
+            container = document.getElementById('animation-container');
+            ripScreen = document.getElementById('rip-screen');
+            finalAgeSpan = document.getElementById('final-age');
+            ageSpan = document.getElementById('age');
+            
+            // Set initial position (random)
+            posX = Math.random() * (container.clientWidth - LOGO_WIDTH);
+            posY = Math.random() * (container.clientHeight - LOGO_HEIGHT);
+            
+            // Set initial direction (random)
+            dirX = Math.random() > 0.5 ? SPEED : -SPEED;
+            dirY = Math.random() > 0.5 ? SPEED : -SPEED;
+            
+            // Reset logo properties
+            logo.style.left = posX + 'px';
+            logo.style.top = posY + 'px';
+            opacity = 1;
+            logo.style.opacity = opacity;
+            currentAge = 0;
+            ageSpan.textContent = currentAge;
+            yearAccumulator = 0;
+            
+            // Generate target lifespan based on mortality data
+            targetLifespan = generateLifespan();
+            
+            // Set initial logo color
+            changeColor();
+            
+            // Hide RIP screen
+            ripScreen.style.display = 'none';
+            
+            // Start animation
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            lastTimestamp = performance.now();
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Generate a lifespan based on US mortality rates
+        function generateLifespan() {
+            const rand = Math.random();
+            let cumulativeProbability = 0;
+            
+            for (let i = 0; i < mortalityData.length; i++) {
+                const range = mortalityData[i];
+                const prevMaxAge = i === 0 ? 0 : mortalityData[i-1].maxAge;
+                
+                // Scale the probability to make a weighted random selection
+                // This makes each age range's selection probability proportional to its mortality rate
+                let scaledProb = range.probability;
+                if (i > 0) {
+                    // Account for those who already died in previous ranges
+                    scaledProb = scaledProb * (1 - cumulativeProbability);
+                }
+                
+                cumulativeProbability += scaledProb;
+                
+                // If our random number falls within this range's probability
+                if (rand < cumulativeProbability) {
+                    // Generate a random age within this range (with slight preference for higher ages within range)
+                    const ageRange = range.maxAge - prevMaxAge;
+                    return prevMaxAge + (Math.pow(Math.random(), 0.7) * ageRange); // Bias toward higher values in range
+                }
+            }
+            
+            // Fallback if we somehow exceed all probabilities
+            return 85;
+        }
+
+        // Change the logo's color by switching the image file
+        function changeColor() {
+            currentLogoIndex = (currentLogoIndex + 1) % logoFiles.length;
+            logo.style.backgroundImage = `url('${logoFiles[currentLogoIndex]}')`;
+        }
+
+        // Animation loop
+        function animate(timestamp) {
+            // Calculate time delta
+            const delta = timestamp - lastTimestamp;
+            lastTimestamp = timestamp;
+            
+            // Update age
+            yearAccumulator += delta;
+            if (yearAccumulator >= YEAR_DURATION) {
+                currentAge += 1;
+                ageSpan.textContent = currentAge.toFixed(1);
+                yearAccumulator -= YEAR_DURATION;
+                
+                // Check if the logo should die based on its age
+                if (currentAge >= targetLifespan) {
+                    logoExpired();
+                    return;
+                }
+            }
+            
+            // Move logo
+            posX += dirX;
+            posY += dirY;
+            
+            // Check for collision with container edges
+            if (posX <= 0 || posX >= container.clientWidth - LOGO_WIDTH) {
+                dirX = -dirX;
+                changeColor();
+                // Decrease opacity
+                opacity = Math.max(0, opacity - OPACITY_DECREASE);
+                logo.style.opacity = opacity;
+                
+                // Check if logo has become completely transparent
+                if (opacity <= 0) {
+                    logoExpired();
+                    return;
+                }
+            }
+            
+            if (posY <= 0 || posY >= container.clientHeight - LOGO_HEIGHT) {
+                dirY = -dirY;
+                changeColor();
+                // Decrease opacity
+                opacity = Math.max(0, opacity - OPACITY_DECREASE);
+                logo.style.opacity = opacity;
+                
+                // Check if logo has become completely transparent
+                if (opacity <= 0) {
+                    logoExpired();
+                    return;
+                }
+            }
+            
+            // Update logo position
+            logo.style.left = posX + 'px';
+            logo.style.top = posY + 'px';
+            
+            // Continue animation
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Handle logo death
+        function logoExpired() {
+            // Stop animation
+            cancelAnimationFrame(animationId);
+            
+            // Show RIP screen
+            finalAgeSpan.textContent = currentAge.toFixed(1);
+            ripScreen.style.display = 'flex';
+        }
+
+        // Add event listener for restart button
+        document.getElementById('restart-button').addEventListener('click', init);
+
+        // Initialize the animation when the page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
