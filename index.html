@@ -93,7 +93,7 @@
 
     <script>
         // US Mortality Rate Data based on CDC and SSA life tables
-        // This uses actual death probability at each age range: https://www.ssa.gov/oact/STATS/table4c6.html
+        // This uses actual death probability at each age range
         const mortalityData = [
             { maxAge: 1, probability: 0.00558 },   // Infant mortality
             { maxAge: 5, probability: 0.00100 },   // Ages 1-4
@@ -122,10 +122,9 @@
         ];
 
         // Animation constants
-        const SPEED = 4;
+        const SPEED = 2;
         const LOGO_WIDTH = 200;
         const LOGO_HEIGHT = 100;
-        const OPACITY_DECREASE = 0.005;
         const YEAR_DURATION = 500; // milliseconds per year
         
         // Animation variables
@@ -139,7 +138,7 @@
         let yearAccumulator = 0;
         // Different colored DVD logo files
         let logoFiles = [
-            'dvd_white.svg',  // Assuming you have the black one already
+            'dvd_black.svg',  // Assuming you have the black one already
             'dvd_red.svg',
             'dvd_green.svg',
             'dvd_blue.svg',
@@ -243,8 +242,19 @@
                 ageSpan.textContent = currentAge.toFixed(1);
                 yearAccumulator -= YEAR_DURATION;
                 
+                // Make logo gradually more transparent as it ages
+                // Calculate opacity based on current age relative to target lifespan
+                opacity = 1 - (currentAge / targetLifespan);
+                logo.style.opacity = Math.max(0, opacity);
+                
                 // Check if the logo should die based on its age
                 if (currentAge >= targetLifespan) {
+                    logoExpired();
+                    return;
+                }
+                
+                // Check if logo has become completely transparent
+                if (opacity <= 0) {
                     logoExpired();
                     return;
                 }
@@ -258,29 +268,11 @@
             if (posX <= 0 || posX >= container.clientWidth - LOGO_WIDTH) {
                 dirX = -dirX;
                 changeColor();
-                // Decrease opacity
-                opacity = Math.max(0, opacity - OPACITY_DECREASE);
-                logo.style.opacity = opacity;
-                
-                // Check if logo has become completely transparent
-                if (opacity <= 0) {
-                    logoExpired();
-                    return;
-                }
             }
             
             if (posY <= 0 || posY >= container.clientHeight - LOGO_HEIGHT) {
                 dirY = -dirY;
                 changeColor();
-                // Decrease opacity
-                opacity = Math.max(0, opacity - OPACITY_DECREASE);
-                logo.style.opacity = opacity;
-                
-                // Check if logo has become completely transparent
-                if (opacity <= 0) {
-                    logoExpired();
-                    return;
-                }
             }
             
             // Update logo position
